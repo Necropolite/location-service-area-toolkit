@@ -1,5 +1,6 @@
 import { assertCoordinates } from './distance.js';
-import type { Coordinates } from './types.js';
+import type { Geocoder } from './providers.js';
+import type { Coordinates, GeocodeResult } from './types.js';
 
 export type NominatimGeocoderOptions = {
   apiBaseUrl?: string;
@@ -8,11 +9,6 @@ export type NominatimGeocoderOptions = {
   language?: string;
   timeoutMs?: number;
   userAgent?: string;
-};
-
-export type GeocodeResult = {
-  coordinates: Coordinates;
-  displayName?: string;
 };
 
 type NominatimSearchResult = {
@@ -54,7 +50,7 @@ export async function geocodeAddress(
   });
 
   const countryCodes = options.countryCodes
-    ?.map((value) => value.trim().toLowerCase())
+    ?.map(value => value.trim().toLowerCase())
     .filter(Boolean);
   if (countryCodes?.length) {
     params.set('countrycodes', countryCodes.join(','));
@@ -101,5 +97,14 @@ export async function geocodeAddress(
   return {
     coordinates,
     displayName: first.display_name?.trim() || undefined,
+  };
+}
+
+export function createNominatimGeocoder(options: NominatimGeocoderOptions = {}): Geocoder {
+  return {
+    id: 'nominatim',
+    geocode(address) {
+      return geocodeAddress(address, options);
+    },
   };
 }
