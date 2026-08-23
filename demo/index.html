@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Configure a service radius and check whether a customer address is inside it.">
+  <title>Service Area Checker | Clint Ramey</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main>
+    <header>
+      <a class="brand" href="https://clintramey.dev">Clint Ramey <span>/ Service Area Checker</span></a>
+      <button id="load-example" type="button">Load North Georgia example</button>
+    </header>
+
+    <section class="intro">
+      <p class="eyebrow">Working location tool</p>
+      <h1>Set the boundary.<br><em>Check the address.</em></h1>
+      <p>Define where a business works, then check whether a customer is inside the service area. The reusable engine handles validated coordinates, distance, and radius policy.</p>
+    </section>
+
+    <section class="workspace" aria-labelledby="checker-title">
+      <form id="checker-form">
+        <div class="form-heading">
+          <p class="eyebrow">Service configuration</p>
+          <h2 id="checker-title">Check a customer location</h2>
+        </div>
+        <div class="field-grid">
+          <label>Business name
+            <input id="business-name" value="My Business" autocomplete="organization">
+          </label>
+          <label>Service radius
+            <span class="input-pair"><input id="radius" type="number" value="25" min="0" step="0.1"><select id="unit"><option value="miles">miles</option><option value="kilometers">kilometers</option></select></span>
+          </label>
+        </div>
+        <label>Business base address
+          <input id="origin-address" value="Clayton, GA" autocomplete="street-address" required>
+          <small>The point from which the straight-line service radius is measured.</small>
+        </label>
+        <label>Customer address
+          <input id="customer-address" value="Lakemont, GA" autocomplete="street-address" required>
+          <small>Address lookup runs only when you submit this form. There is no autocomplete.</small>
+        </label>
+        <button class="primary" type="submit">Check service area</button>
+        <p id="form-status" class="status" role="status" aria-live="polite"></p>
+      </form>
+
+      <section class="result" aria-live="polite" aria-labelledby="result-title">
+        <p class="eyebrow">Service decision</p>
+        <h2 id="result-title">Ready to check</h2>
+        <p id="result-summary">Enter a business base, radius, and customer address.</p>
+        <div class="distance"><strong id="distance-value">--</strong><span id="distance-unit">miles away</span></div>
+        <dl>
+          <div><dt>Business location</dt><dd id="origin-result">Not checked</dd></div>
+          <div><dt>Customer location</dt><dd id="customer-result">Not checked</dd></div>
+          <div><dt>Remaining radius</dt><dd id="remaining-result">--</dd></div>
+        </dl>
+        <p class="straight-line">This is straight-line distance, not road or drive-time distance.</p>
+      </section>
+    </section>
+
+    <section class="explain">
+      <article><span>01</span><h3>Configure once</h3><p>Set the business base, distance unit, and service radius.</p></article>
+      <article><span>02</span><h3>Check consistently</h3><p>Every address is evaluated with the same validated distance policy.</p></article>
+      <article><span>03</span><h3>Integrate anywhere</h3><p>Use the engine in booking forms, delivery checks, dispatch tools, or lead qualification.</p></article>
+    </section>
+
+    <details>
+      <summary>Developer view: reusable configuration</summary>
+      <pre id="config-output"></pre>
+    </details>
+
+    <footer>
+      <p>Address data © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap contributors</a>. Search powered by Nominatim.</p>
+      <a href="https://clintramey.dev/#contact">Connect this to a real workflow →</a>
+    </footer>
+  </main>
+  <script src="app.js"></script>
+</body>
+</html>
