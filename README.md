@@ -184,6 +184,8 @@ npm run deploy:dry
 npm run deploy
 ```
 
+The production demo is published at [https://service-area.clintramey.dev](https://service-area.clintramey.dev) through the Wrangler-managed custom domain.
+
 ## Repository layout
 
 ```text
