@@ -143,9 +143,7 @@ Those application concerns call the generic functions exported here.
 
 ## Status
 
-**V1 extracted on August 23, 2026.** The source behavior was verified inside LocksmithOS with 9 location tests passing, 33 total repository tests passing, and the full Next.js production build succeeding, including linting and TypeScript checks.
-
-The standalone repository still needs its own fresh `npm install`, `npm test`, and `npm run build` before the extraction itself is marked independently verified.
+**V1 independently verified complete on August 23, 2026.** Standalone validation passed all 9 tests, the TypeScript production build completed successfully, and `npm install` reported 0 vulnerabilities. The same behavior had already been integration-tested inside LocksmithOS with all 33 repository tests and the full Next.js production build passing.
 
 ## V1 non-goals
 
