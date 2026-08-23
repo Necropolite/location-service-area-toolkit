@@ -186,6 +186,8 @@ npm run deploy
 
 The production demo is published at [https://service-area.clintramey.dev](https://service-area.clintramey.dev) through the Wrangler-managed custom domain.
 
+The demo intentionally does not register a service worker. Nominatim lookups remain network-only and are never placed in an application cache; installability and offline support are optional application features rather than requirements for this module demo.
+
 ## Repository layout
 
 ```text
