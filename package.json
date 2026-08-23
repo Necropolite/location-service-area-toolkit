@@ -1,8 +1,8 @@
 {
   "name": "location-service-area-toolkit",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
-  "description": "Reusable distance, radius/service-area, and Nominatim geocoding utilities.",
+  "description": "Reusable geocoding, distance-provider, and configurable service-area utilities.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -22,7 +22,7 @@
     "build": "npm run build:core && npm run build:demo",
     "build:core": "tsc -p tsconfig.json",
     "build:demo": "esbuild demo/app.ts --bundle --format=iife --outfile=demo/app.js",
-    "test": "tsx --test tests/*.test.ts",
+    "test": "node --import tsx --test tests/*.test.ts",
     "deploy": "npm run build && npx wrangler@latest deploy",
     "deploy:dry": "npm run build && npx wrangler@latest deploy --dry-run"
   },

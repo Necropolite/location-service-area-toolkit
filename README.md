@@ -1,18 +1,26 @@
 # Location Service Area Toolkit
 
-Reusable TypeScript building blocks for geographic distance, radius/service-area evaluation, and Nominatim forward geocoding.
+Reusable TypeScript building blocks for geocoding, geographic distance, and explainable service-area decisions.
 
 This repository is the canonical source for the generic location components originally extracted from `Necropolite/LocksmithOS`. LocksmithOS is one consumer of the toolkit, not the definition of it.
 
 ## Scope
 
-V1 contains three reusable pieces:
+The module answers one question: **does this coordinate belong to the configured service territory, and why?**
 
-1. validated coordinate distance using the Haversine formula;
-2. configurable radius/service-area evaluation;
-3. explicit-config Nominatim forward geocoding.
+It supports:
 
-The package deliberately does not contain application-specific base locations, service radii, pricing, jobs, technicians, UI, persistence, environment-variable conventions, or map components.
+- validated Haversine distance in miles or kilometers;
+- multiple named business origins;
+- multiple radius areas from the same or different origins;
+- inclusive and exclusion areas, with exclusions taking precedence;
+- polygon areas with boundary-inclusive point checks;
+- complete per-area checks plus matched and deciding areas;
+- pluggable distance providers for road distance or drive time;
+- a generic geocoder interface and a configurable Nominatim implementation;
+- typed configuration validation issues and provider errors.
+
+The module deliberately excludes pricing, quotes, service catalogs, customer accounts, lead capture, CRM behavior, jobs, technicians, persistence, and application UI. Applications own those concerns and consume this package's geographic result.
 
 ## Development
 
@@ -23,13 +31,151 @@ npm run build
 npm run deploy:dry
 ```
 
-The geocoder tests do not make real Nominatim requests. Provider behavior is tested with injected `fetch` implementations.
+Geocoder and distance-provider tests use injected implementations. The automated suite does not make live provider requests.
 
-## Public service-area checker
+## Public API
 
-The repository now includes a browser-based service-area checker in `demo/`. A business can configure its base address and radius, then check whether a customer address is inside that boundary. The result clearly identifies straight-line distance rather than driving distance.
+```ts
+import {
+  evaluateServiceArea,
+  evaluateServiceAreaWithProvider,
+  validateServiceAreaConfiguration,
+  createHaversineDistanceProvider,
+  createNominatimGeocoder,
+  type DistanceProvider,
+  type ServiceAreaConfiguration,
+} from './src/index.ts';
+```
 
-The checker uses the same exported engine as application consumers. Address searches are explicit user submissions, not autocomplete. Results are cached in the browser for 30 days, uncached requests are spaced to respect the public provider limit, and OpenStreetMap attribution is displayed. Production or higher-volume consumers should configure a commercial or self-hosted geocoder rather than depend on the public Nominatim service.
+After `npm run build`, the package entry point is `dist/index.js` with declarations in `dist/index.d.ts`.
+
+The original `calculateDistance`, `evaluateRadius`, `evaluateDistanceAgainstRadius`, and `geocodeAddress` functions remain available for simple consumers.
+
+## Configured service areas
+
+Origins are defined once and referenced by radius areas. Reusing an origin ID creates multiple radii from the same location. Polygon areas do not require an origin.
+
+```ts
+const configuration: ServiceAreaConfiguration = {
+  origins: [
+    {
+      id: 'clayton',
+      name: 'Clayton office',
+      coordinates: { latitude: 34.8781, longitude: -83.4007 },
+    },
+    {
+      id: 'dillard',
+      name: 'Dillard office',
+      coordinates: { latitude: 34.9701, longitude: -83.3874 },
+    },
+  ],
+  areas: [
+    {
+      id: 'clayton-local',
+      name: 'Clayton local area',
+      type: 'radius',
+      originId: 'clayton',
+      radius: 20,
+      unit: 'miles',
+    },
+    {
+      id: 'dillard-local',
+      name: 'Dillard local area',
+      type: 'radius',
+      originId: 'dillard',
+      radius: 20,
+      unit: 'miles',
+    },
+    {
+      id: 'restricted-property',
+      name: 'Restricted property',
+      type: 'polygon',
+      effect: 'exclude',
+      vertices: [
+        { latitude: 34.90, longitude: -83.45 },
+        { latitude: 34.90, longitude: -83.44 },
+        { latitude: 34.91, longitude: -83.44 },
+        { latitude: 34.91, longitude: -83.45 },
+      ],
+    },
+  ],
+};
+
+const result = evaluateServiceArea(configuration, {
+  latitude: 34.7837,
+  longitude: -83.4168,
+});
+```
+
+The result contains:
+
+- `status`: `inside`, `outside`, or `excluded`;
+- `isInside`: a direct boolean decision;
+- `checks`: the result of every configured area in configuration order;
+- `matches`: every area containing the destination;
+- `decidingMatch`: the exclusion or inclusion that decided the outcome;
+- the origin, method, distance, radius, unit, remaining distance, and optional drive duration when applicable.
+
+Area boundaries are inclusive. A radius distance exactly equal to the configured radius is inside. A point on a polygon edge or vertex is also inside. If a point matches both inclusion and exclusion areas, the result is `excluded`. Within the same effect, the first matching area in configuration order is the deciding match, while all matches remain available.
+
+Polygon checks use longitude and latitude with a ray-casting calculation. They are intended for ordinary local or regional service territories and are not a geodesic polygon solution for territories crossing the antimeridian.
+
+## Pluggable distance providers
+
+The synchronous `evaluateServiceArea` function uses Haversine distance. Applications can inject a road-distance provider without coupling provider credentials or API behavior to this package.
+
+```ts
+const roadProvider: DistanceProvider = {
+  id: 'my-routing-provider',
+  async measure(start, end, unit) {
+    const route = await fetchRouteFromMyBackend(start, end, unit);
+    return {
+      distance: route.distance,
+      unit,
+      method: 'road',
+      durationSeconds: route.durationSeconds,
+    };
+  },
+};
+
+const result = await evaluateServiceAreaWithProvider(
+  configuration,
+  destination,
+  roadProvider,
+);
+```
+
+Radius areas sharing the same origin and unit reuse one provider measurement during an evaluation. Provider results are checked for non-negative finite distance, requested-unit agreement, non-empty method, and valid optional duration.
+
+`createHaversineDistanceProvider()` is included when an application wants the same provider-shaped interface without an external routing service.
+
+## Geocoding providers
+
+`Geocoder` is the generic address-to-coordinate interface. The included Nominatim adapter accepts provider configuration explicitly rather than reading application state.
+
+```ts
+const geocoder = createNominatimGeocoder({
+  countryCodes: ['us'],
+  language: 'en',
+  userAgent: 'ExampleApp/1.0',
+});
+
+const place = await geocoder.geocode('Lakemont, GA');
+```
+
+Nominatim options include a custom API base URL, country filters, language, timeout, server-side user-agent identification, and injected `fetch` for testing. Browser code cannot set a `User-Agent` header, so production and higher-volume applications should call a properly identified commercial, self-hosted, or server-proxied geocoder rather than depending directly on the public endpoint.
+
+## Validation and errors
+
+`validateServiceAreaConfiguration` returns typed issues with `code`, `path`, and `message`. It checks duplicate IDs, coordinate ranges, missing origins, unknown origin references, radius values, units, effects, and polygon vertices.
+
+`evaluateServiceArea` and `evaluateServiceAreaWithProvider` throw `ServiceAreaConfigurationError` when configuration is invalid. Provider output failures throw `DistanceProviderError` with a stable error code and provider ID.
+
+## Demo
+
+The browser demo in `demo/` visibly exercises multiple origins, multiple radius rules, and an optional exclusion radius. Its developer view displays the complete configuration and typed evaluation result. Polygon behavior and custom distance providers are covered by the public API, documentation, and automated tests rather than address-form UI.
+
+The demo caches geocodes in the browser for 30 days, spaces uncached public Nominatim requests, displays OpenStreetMap attribution, and clearly identifies the bundled calculation as straight-line distance.
 
 Build and deploy the static Cloudflare Worker with:
 
@@ -38,143 +184,30 @@ npm run deploy:dry
 npm run deploy
 ```
 
-The deployed tool is a proof of concept for booking forms, delivery zones, dispatch areas, and lead qualification. It does not calculate road routes or drive time.
-
-## Public API
-
-```ts
-import {
-  calculateDistance,
-  calculateDistanceMiles,
-  calculateDistanceKilometers,
-  evaluateRadius,
-  evaluateDistanceAgainstRadius,
-  geocodeAddress,
-  type Coordinates,
-  type DistanceUnit,
-} from './src/index.ts';
-```
-
-After `npm run build`, the package entry point is `dist/index.js` with declarations in `dist/index.d.ts`.
-
-## Distance
-
-```ts
-const miles = calculateDistanceMiles(
-  { latitude: 34.0, longitude: -83.0 },
-  { latitude: 34.1, longitude: -83.0 },
-);
-```
-
-Supported units are `miles` and `kilometers`.
-
-Coordinates are validated before calculation:
-
-- latitude must be between -90 and 90;
-- longitude must be between -180 and 180.
-
-## Radius and service-area evaluation
-
-Evaluate coordinates directly:
-
-```ts
-const result = evaluateRadius(origin, destination, 25, 'miles');
-```
-
-Or evaluate an already-known distance:
-
-```ts
-const result = evaluateDistanceAgainstRadius(18.4, 25, 'miles');
-```
-
-The boundary is inclusive. A distance exactly equal to the configured radius is considered inside.
-
-The same primitive can represent a field-service territory, delivery zone, pickup radius, dispatch area, or another distance-based policy without changing the engine.
-
-## Nominatim geocoding
-
-The geocoder accepts provider configuration explicitly rather than reading application state:
-
-```ts
-const result = await geocodeAddress('Lakemont, GA', {
-  countryCodes: ['us'],
-  language: 'en',
-  userAgent: 'ExampleApp/1.0',
-});
-```
-
-Options include:
-
-- custom API base URL;
-- country-code filters;
-- language;
-- timeout;
-- user-agent identification;
-- injected `fetch` for testing.
-
-The geocoder returns `undefined` when no result is found and throws for empty input, invalid provider URLs, invalid returned coordinates, or unsuccessful provider responses.
-
 ## Repository layout
 
 ```text
 src/
-  index.ts          public API
-  types.ts          coordinate and radius types
+  configuration.ts  configuration validation
   distance.ts       validated Haversine distance
-  service-area.ts   radius/service-area evaluation
+  errors.ts         typed validation and provider errors
+  index.ts          public API
   nominatim.ts      configurable forward geocoder
+  polygon.ts        boundary-inclusive point-in-polygon
+  providers.ts      geocoder and distance-provider contracts
+  service-area.ts   simple radius evaluation
+  territory.ts      composed service-area evaluation
+  types.ts          public data types
 
 demo/
-  index.html         public service-area checker
-  app.ts             browser integration using the reusable engine
-  styles.css         responsive presentation
+  index.html        public module demonstration
+  app.ts            browser integration
+  styles.css        responsive presentation
 
 tests/
   location.test.ts
 ```
 
-## Tests
-
-The standalone suite covers:
-
-- zero distance;
-- miles and kilometers;
-- a non-locksmith delivery-zone example;
-- inclusive radius boundaries;
-- invalid coordinates, radius, and distance inputs;
-- Nominatim request construction;
-- country/language/provider configuration;
-- no-result behavior;
-- invalid provider configuration without network access;
-- provider failure handling.
-
-## Consumer boundary
-
-Applications should keep their own policy outside this package. LocksmithOS, for example, retains:
-
-- its business base address;
-- its business base coordinates;
-- its service radius;
-- pricing decisions;
-- request/job orchestration;
-- map UI and GPS interaction;
-- business-specific provider identification.
-
-Those application concerns call the generic functions exported here.
-
 ## Status
 
-**V1 engine independently verified complete on August 23, 2026.** Standalone validation passed all 9 tests, the TypeScript production build completed successfully, and `npm install` reported 0 vulnerabilities. The same behavior had already been integration-tested inside LocksmithOS with all 33 repository tests and the full Next.js production build passing.
-
-## V1 non-goals
-
-Do not add these until a real consumer requires them:
-
-- drive-time or route calculation;
-- polygon geofencing;
-- reverse-geocoded address formatting;
-- route or drive-time map UI;
-- shared server-side persistence or caching;
-- automatic retries;
-- provider API-key management;
-- business-specific service-area policy.
+**Version 1.2 module expansion completed on August 23, 2026.** The current suite covers the original distance, radius, and Nominatim behavior plus multiple origins, multiple radii, exclusion precedence, polygon boundaries, typed validation, generic geocoding, pluggable distance providers, provider result validation, and per-evaluation measurement reuse.
