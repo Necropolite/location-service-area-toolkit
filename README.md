@@ -20,9 +20,25 @@ The package deliberately does not contain application-specific base locations, s
 npm install
 npm test
 npm run build
+npm run deploy:dry
 ```
 
 The geocoder tests do not make real Nominatim requests. Provider behavior is tested with injected `fetch` implementations.
+
+## Public service-area checker
+
+The repository now includes a browser-based service-area checker in `demo/`. A business can configure its base address and radius, then check whether a customer address is inside that boundary. The result clearly identifies straight-line distance rather than driving distance.
+
+The checker uses the same exported engine as application consumers. Address searches are explicit user submissions, not autocomplete. Results are cached in the browser for 30 days, uncached requests are spaced to respect the public provider limit, and OpenStreetMap attribution is displayed. Production or higher-volume consumers should configure a commercial or self-hosted geocoder rather than depend on the public Nominatim service.
+
+Build and deploy the static Cloudflare Worker with:
+
+```powershell
+npm run deploy:dry
+npm run deploy
+```
+
+The deployed tool is a proof of concept for booking forms, delivery zones, dispatch areas, and lead qualification. It does not calculate road routes or drive time.
 
 ## Public API
 
@@ -108,6 +124,11 @@ src/
   service-area.ts   radius/service-area evaluation
   nominatim.ts      configurable forward geocoder
 
+demo/
+  index.html         public service-area checker
+  app.ts             browser integration using the reusable engine
+  styles.css         responsive presentation
+
 tests/
   location.test.ts
 ```
@@ -143,7 +164,7 @@ Those application concerns call the generic functions exported here.
 
 ## Status
 
-**V1 independently verified complete on August 23, 2026.** Standalone validation passed all 9 tests, the TypeScript production build completed successfully, and `npm install` reported 0 vulnerabilities. The same behavior had already been integration-tested inside LocksmithOS with all 33 repository tests and the full Next.js production build passing.
+**V1 engine independently verified complete on August 23, 2026.** Standalone validation passed all 9 tests, the TypeScript production build completed successfully, and `npm install` reported 0 vulnerabilities. The same behavior had already been integration-tested inside LocksmithOS with all 33 repository tests and the full Next.js production build passing.
 
 ## V1 non-goals
 
@@ -152,8 +173,8 @@ Do not add these until a real consumer requires them:
 - drive-time or route calculation;
 - polygon geofencing;
 - reverse-geocoded address formatting;
-- map UI components;
-- persistence or caching;
+- route or drive-time map UI;
+- shared server-side persistence or caching;
 - automatic retries;
 - provider API-key management;
 - business-specific service-area policy.
